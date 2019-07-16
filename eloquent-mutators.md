@@ -43,11 +43,25 @@ To define an accessor, create a `getFooAttribute` method on your model where `Fo
         }
     }
 
-As you can see, the original value of the column is passed to the accessor, allowing you to manipulate and return the value. To access the value of the mutator, you may simply access the `first_name` attribute on a model instance:
+As you can see, the original value of the column is passed to the accessor, allowing you to manipulate and return the value. To access the value of the accessor, you may access the `first_name` attribute on a model instance:
 
     $user = App\User::find(1);
 
     $firstName = $user->first_name;
+
+You may also use accessors to return new, computed values from existing attributes:
+
+    /**
+     * Get the user's full name.
+     *
+     * @return string
+     */
+    public function getFullNameAttribute()
+    {
+        return "{$this->first_name} {$this->last_name}";
+    }
+
+> {tip} If you would like these computed values to be added to the array / JSON representations of your model, [you will need to append them](https://laravel.com/docs/{{version}}/eloquent-serialization#appending-values-to-json).
 
 <a name="defining-a-mutator"></a>
 ### Defining A Mutator
@@ -85,7 +99,7 @@ In this example, the `setFirstNameAttribute` function will be called with the va
 <a name="date-mutators"></a>
 ## Date Mutators
 
-By default, Eloquent will convert the `created_at` and `updated_at` columns to instances of [Carbon](https://github.com/briannesbitt/Carbon), which extends the PHP `DateTime` class to provide an assortment of helpful methods. You may customize which dates are automatically mutated, and even completely disable this mutation, by overriding the `$dates` property of your model:
+By default, Eloquent will convert the `created_at` and `updated_at` columns to instances of [Carbon](https://github.com/briannesbitt/Carbon), which extends the PHP `DateTime` class and provides an assortment of helpful methods. You may add additional date attributes by setting the `$dates` property of your model:
 
     <?php
 
@@ -101,17 +115,17 @@ By default, Eloquent will convert the `created_at` and `updated_at` columns to i
          * @var array
          */
         protected $dates = [
-            'created_at',
-            'updated_at',
-            'deleted_at'
+            'seen_at',
         ];
     }
 
-When a column is considered a date, you may set its value to a UNIX timestamp, date string (`Y-m-d`), date-time string, and of course a `DateTime` / `Carbon` instance, and the date's value will automatically be correctly stored in your database:
+> {tip} You may disable the default `created_at` and `updated_at` timestamps by setting the public `$timestamps` property of your model to `false`.
+
+When a column is considered a date, you may set its value to a UNIX timestamp, date string (`Y-m-d`), date-time string, or a `DateTime` / `Carbon` instance. The date's value will be correctly converted and stored in your database:
 
     $user = App\User::find(1);
 
-    $user->deleted_at = Carbon::now();
+    $user->deleted_at = now();
 
     $user->save();
 
@@ -144,9 +158,9 @@ By default, timestamps are formatted as `'Y-m-d H:i:s'`. If you need to customiz
 <a name="attribute-casting"></a>
 ## Attribute Casting
 
-The `$casts` property on your model provides a convenient method of converting attributes to common data types. The `$casts` property should be an array where the key is the name of the attribute being cast and the value is the type you wish to cast the column to. The supported cast types are: `integer`, `real`, `float`, `double`, `string`, `boolean`, `object`, `array`, `collection`, `date`, `datetime`, and `timestamp`.
+The `$casts` property on your model provides a convenient method of converting attributes to common data types. The `$casts` property should be an array where the key is the name of the attribute being cast and the value is the type you wish to cast the column to. The supported cast types are: `integer`, `real`, `float`, `double`, `decimal:<digits>`, `string`, `boolean`, `object`, `array`, `collection`, `date`, `datetime`, and `timestamp`. When casting to `decimal`, you must define the number of digits (`decimal:2`).
 
-For example, let's cast the `is_admin` attribute, which is stored in our database as an integer (`0` or `1`) to a boolean value:
+To demonstrate attribute casting, let's cast the `is_admin` attribute, which is stored in our database as an integer (`0` or `1`) to a boolean value:
 
     <?php
 
@@ -157,7 +171,7 @@ For example, let's cast the `is_admin` attribute, which is stored in our databas
     class User extends Model
     {
         /**
-         * The attributes that should be casted to native types.
+         * The attributes that should be cast to native types.
          *
          * @var array
          */
@@ -188,7 +202,7 @@ The `array` cast type is particularly useful when working with columns that are 
     class User extends Model
     {
         /**
-         * The attributes that should be casted to native types.
+         * The attributes that should be cast to native types.
          *
          * @var array
          */
@@ -208,3 +222,17 @@ Once the cast is defined, you may access the `options` attribute and it will aut
     $user->options = $options;
 
     $user->save();
+
+<a name="date-casting"></a>
+### Date Casting
+
+When using the `date` or `datetime` cast type, you may specify the date's format. This format will be used when the [model is serialized to an array or JSON](/docs/{{version}}/eloquent-serialization):
+
+    /**
+     * The attributes that should be cast to native types.
+     *
+     * @var array
+     */
+    protected $casts = [
+        'created_at' => 'datetime:Y-m-d',
+    ];

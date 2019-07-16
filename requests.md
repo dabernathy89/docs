@@ -3,12 +3,14 @@
 - [Accessing The Request](#accessing-the-request)
     - [Request Path & Method](#request-path-and-method)
     - [PSR-7 Requests](#psr7-requests)
+- [Input Trimming & Normalization](#input-trimming-and-normalization)
 - [Retrieving Input](#retrieving-input)
     - [Old Input](#old-input)
     - [Cookies](#cookies)
 - [Files](#files)
     - [Retrieving Uploaded Files](#retrieving-uploaded-files)
     - [Storing Uploaded Files](#storing-uploaded-files)
+- [Configuring Trusted Proxies](#configuring-trusted-proxies)
 
 <a name="accessing-the-request"></a>
 ## Accessing The Request
@@ -116,7 +118,7 @@ The `method` method will return the HTTP verb for the request. You may use the `
 <a name="psr7-requests"></a>
 ### PSR-7 Requests
 
-The [PSR-7 standard](http://www.php-fig.org/psr/psr-7/) specifies interfaces for HTTP messages, including requests and responses. If you would like to obtain an instance of a PSR-7 request instead of a Laravel request, you will first need to install a few libraries. Laravel uses the *Symfony HTTP Message Bridge* component to convert typical Laravel requests and responses into PSR-7 compatible implementations:
+The [PSR-7 standard](https://www.php-fig.org/psr/psr-7/) specifies interfaces for HTTP messages, including requests and responses. If you would like to obtain an instance of a PSR-7 request instead of a Laravel request, you will first need to install a few libraries. Laravel uses the *Symfony HTTP Message Bridge* component to convert typical Laravel requests and responses into PSR-7 compatible implementations:
 
     composer require symfony/psr-http-message-bridge
     composer require zendframework/zend-diactoros
@@ -130,6 +132,13 @@ Once you have installed these libraries, you may obtain a PSR-7 request by type-
     });
 
 > {tip} If you return a PSR-7 response instance from a route or controller, it will automatically be converted back to a Laravel response instance and be displayed by the framework.
+
+<a name="input-trimming-and-normalization"></a>
+## Input Trimming & Normalization
+
+By default, Laravel includes the `TrimStrings` and `ConvertEmptyStringsToNull` middleware in your application's global middleware stack. These middleware are listed in the stack by the `App\Http\Kernel` class. These middleware will automatically trim all incoming string fields on the request, as well as convert any empty string fields to `null`. This allows you to not have to worry about these normalization concerns in your routes and controllers.
+
+If you would like to disable this behavior, you may remove the two middleware from your application's middleware stack by removing them from the `$middleware` property of your `App\Http\Kernel` class.
 
 <a name="retrieving-input"></a>
 ## Retrieving Input
@@ -155,6 +164,24 @@ When working with forms that contain array inputs, use "dot" notation to access 
     $name = $request->input('products.0.name');
 
     $names = $request->input('products.*.name');
+
+You may call the `input` method without any arguments in order to retrieve all of the input values as an associative array:
+
+    $input = $request->input();
+
+#### Retrieving Input From The Query String
+
+While the `input` method retrieves values from entire request payload (including the query string), the `query` method will only retrieve values from the query string:
+
+    $name = $request->query('name');
+
+If the requested query string value data is not present, the second argument to this method will be returned:
+
+    $name = $request->query('name', 'Helen');
+
+You may call the `query` method without any arguments in order to retrieve all of the query string values as an associative array:
+
+    $query = $request->query();
 
 #### Retrieving Input Via Dynamic Properties
 
@@ -182,11 +209,25 @@ If you need to retrieve a subset of the input data, you may use the `only` and `
 
     $input = $request->except('credit_card');
 
+> {tip} The `only` method returns all of the key / value pairs that you request; however, it will not return key / value pairs that are not present on the request.
+
 #### Determining If An Input Value Is Present
 
-You should use the `has` method to determine if a value is present on the request. The `has` method returns `true` if the value is present and is not an empty string:
+You should use the `has` method to determine if a value is present on the request. The `has` method returns `true` if the value is present on the request:
 
     if ($request->has('name')) {
+        //
+    }
+
+When given an array, the `has` method will determine if all of the specified values are present:
+
+    if ($request->has(['name', 'email'])) {
+        //
+    }
+
+If you would like to determine if a value is present on the request and is not empty, you may use the `filled` method:
+
+    if ($request->filled('name')) {
         //
     }
 
@@ -236,6 +277,10 @@ All cookies created by the Laravel framework are encrypted and signed with an au
 
     $value = $request->cookie('name');
 
+Alternatively, you may use the `Cookie` facade to access cookie values:
+
+    $value = Cookie::get('name');
+
 #### Attaching Cookies To Responses
 
 You may attach a cookie to an outgoing `Illuminate\Http\Response` instance using the `cookie` method. You should pass the name, value, and number of minutes the cookie should be considered valid to this method:
@@ -244,11 +289,17 @@ You may attach a cookie to an outgoing `Illuminate\Http\Response` instance using
         'name', 'value', $minutes
     );
 
-The `cookie` method also accepts a few more arguments which are used less frequently. Generally, these arguments have the same purpose and meaning as the arguments that would be given to PHP's native [setcookie](http://php.net/manual/en/function.setcookie.php) method:
+The `cookie` method also accepts a few more arguments which are used less frequently. Generally, these arguments have the same purpose and meaning as the arguments that would be given to PHP's native [setcookie](https://secure.php.net/manual/en/function.setcookie.php) method:
 
     return response('Hello World')->cookie(
         'name', 'value', $minutes, $path, $domain, $secure, $httpOnly
     );
+
+Alternatively, you can use the `Cookie` facade to "queue" cookies for attachment to the outgoing response from your application. The `queue` method accepts a `Cookie` instance or the arguments needed to create a `Cookie` instance. These cookies will be attached to the outgoing response before it is sent to the browser:
+
+    Cookie::queue(Cookie::make('name', 'value', $minutes));
+
+    Cookie::queue('name', 'value', $minutes);
 
 #### Generating Cookie Instances
 
@@ -259,7 +310,7 @@ If you would like to generate a `Symfony\Component\HttpFoundation\Cookie` instan
     return response('Hello World')->cookie($cookie);
 
 <a name="files"></a>
-### Files
+## Files
 
 <a name="retrieving-uploaded-files"></a>
 ### Retrieving Uploaded Files
@@ -294,14 +345,14 @@ The `UploadedFile` class also contains methods for accessing the file's fully-qu
 
 #### Other File Methods
 
-There are a variety of other methods available on `UploadedFile` instances. Check out the [API documentation for the class](http://api.symfony.com/3.0/Symfony/Component/HttpFoundation/File/UploadedFile.html) for more information regarding these methods.
+There are a variety of other methods available on `UploadedFile` instances. Check out the [API documentation for the class](https://api.symfony.com/3.0/Symfony/Component/HttpFoundation/File/UploadedFile.html) for more information regarding these methods.
 
 <a name="storing-uploaded-files"></a>
 ### Storing Uploaded Files
 
 To store an uploaded file, you will typically use one of your configured [filesystems](/docs/{{version}}/filesystem). The `UploadedFile` class has a `store` method which will move an uploaded file to one of your disks, which may be a location on your local filesystem or even a cloud storage location like Amazon S3.
 
-The `store` method accepts the path where the file should be stored relative to the filesystem's configured root directory. This path should not contain a file name, since the name will automatically be generated using the MD5 hash of the file's contents.
+The `store` method accepts the path where the file should be stored relative to the filesystem's configured root directory. This path should not contain a file name, since a unique ID will automatically be generated to serve as the file name.
 
 The `store` method also accepts an optional second argument for the name of the disk that should be used to store the file. The method will return the path of the file relative to the disk's root:
 
@@ -314,3 +365,50 @@ If you do not want a file name to be automatically generated, you may use the `s
     $path = $request->photo->storeAs('images', 'filename.jpg');
 
     $path = $request->photo->storeAs('images', 'filename.jpg', 's3');
+
+<a name="configuring-trusted-proxies"></a>
+## Configuring Trusted Proxies
+
+When running your applications behind a load balancer that terminates TLS / SSL certificates, you may notice your application sometimes does not generate HTTPS links. Typically this is because your application is being forwarded traffic from your load balancer on port 80 and does not know it should generate secure links.
+
+To solve this, you may use the `App\Http\Middleware\TrustProxies` middleware that is included in your Laravel application, which allows you to quickly customize the load balancers or proxies that should be trusted by your application. Your trusted proxies should be listed as an array on the `$proxies` property of this middleware. In addition to configuring the trusted proxies, you may configure the proxy `$headers` that should be trusted:
+
+    <?php
+
+    namespace App\Http\Middleware;
+
+    use Illuminate\Http\Request;
+    use Fideloper\Proxy\TrustProxies as Middleware;
+
+    class TrustProxies extends Middleware
+    {
+        /**
+         * The trusted proxies for this application.
+         *
+         * @var array
+         */
+        protected $proxies = [
+            '192.168.1.1',
+            '192.168.1.2',
+        ];
+
+        /**
+         * The headers that should be used to detect proxies.
+         *
+         * @var string
+         */
+        protected $headers = Request::HEADER_X_FORWARDED_ALL;
+    }
+
+> {tip} If you are using AWS Elastic Load Balancing, your `$headers` value should be `Request::HEADER_X_FORWARDED_AWS_ELB`. For more information on the constants that may be used in the `$headers` property, check out Symfony's documentation on [trusting proxies](https://symfony.com/doc/current/deployment/proxies.html).
+
+#### Trusting All Proxies
+
+If you are using Amazon AWS or another "cloud" load balancer provider, you may not know the IP addresses of your actual balancers. In this case, you may use `*` to trust all proxies:
+
+    /**
+     * The trusted proxies for this application.
+     *
+     * @var array
+     */
+    protected $proxies = '*';

@@ -1,4 +1,4 @@
-# Envoy Task Runner
+# Laravel Envoy
 
 - [Introduction](#introduction)
     - [Installation](#installation)
@@ -11,6 +11,7 @@
     - [Confirming Task Execution](#confirming-task-execution)
 - [Notifications](#notifications)
     - [Slack](#slack)
+    - [Discord](#discord)
 
 <a name="introduction"></a>
 ## Introduction
@@ -22,7 +23,7 @@
 
 First, install Envoy using the Composer `global require` command:
 
-    composer global require "laravel/envoy=~1.0"
+    composer global require laravel/envoy
 
 Since global Composer libraries can sometimes cause package version conflicts, you may wish to consider using `cgr`, which is a drop-in replacement for the `composer global require` command. The `cgr` library's installation instructions can be [found on GitHub](https://github.com/consolidation-org/cgr).
 
@@ -30,7 +31,7 @@ Since global Composer libraries can sometimes cause package version conflicts, y
 
 #### Updating Envoy
 
-You may also use Composer to keep your Envoy installation up to date. Issuing the the `composer global update` command will update all of your globally installed Composer packages:
+You may also use Composer to keep your Envoy installation up to date. Issuing the `composer global update` command will update all of your globally installed Composer packages:
 
     composer global update
 
@@ -54,7 +55,7 @@ You can force a script to run locally by specifying the server's IP address as `
 <a name="setup"></a>
 ### Setup
 
-Sometimes, you may need to execute some PHP code before executing your Envoy tasks. You may use the ```@setup``` directive to declare variables and do other general PHP work before any of your other tasks are executed:
+Sometimes, you may need to execute some PHP code before executing your Envoy tasks. You may use the `@setup` directive to declare variables and do other general PHP work before any of your other tasks are executed:
 
     @setup
         $now = new DateTime();
@@ -77,7 +78,7 @@ If needed, you may pass option values into Envoy tasks using the command line:
 
     envoy run deploy --branch=master
 
-You may use access the options in your tasks via Blade's "echo" syntax. Of course, you may also use `if` statements and loops within your tasks. For example, let's verify the presence of the `$branch` variable before executing the `git pull` command:
+You may access the options in your tasks via Blade's "echo" syntax. You may also use `if` statements and loops within your tasks. For example, let's verify the presence of the `$branch` variable before executing the `git pull` command:
 
     @servers(['web' => '192.168.1.1'])
 
@@ -145,7 +146,7 @@ By default, tasks will be executed on each server serially. In other words, a ta
 
 To run a task or story that is defined in your `Envoy.blade.php` file, execute Envoy's `run` command, passing the name of the task or story you would like to execute. Envoy will run the task and display the output from the servers as the task is running:
 
-    envoy run task
+    envoy run deploy
 
 <a name="confirming-task-execution"></a>
 ### Confirming Task Execution
@@ -159,7 +160,6 @@ If you would like to be prompted for confirmation before running a given task on
     @endtask
 
 <a name="notifications"></a>
-<a name="hipchat-notifications"></a>
 ## Notifications
 
 <a name="slack"></a>
@@ -167,9 +167,9 @@ If you would like to be prompted for confirmation before running a given task on
 
 Envoy also supports sending notifications to [Slack](https://slack.com) after each task is executed. The `@slack` directive accepts a Slack hook URL and a channel name. You may retrieve your webhook URL by creating an "Incoming WebHooks" integration in your Slack control panel. You should pass the entire webhook URL into the `@slack` directive:
 
-    @after
+    @finished
         @slack('webhook-url', '#bots')
-    @endafter
+    @endfinished
 
 You may provide one of the following as the channel argument:
 
@@ -178,3 +178,11 @@ You may provide one of the following as the channel argument:
 - To send the notification to a user: `@user`
 </div>
 
+<a name="discord"></a>
+### Discord
+
+Envoy also supports sending notifications to [Discord](https://discord.com) after each task is executed. The `@discord` directive accepts a Discord hook URL and a message. You may retrieve your webhook URL by creating a "Webhook" in your Server Settings and choosing which channel the webhook should post to. You should pass the entire Webhook URL into the `@discord` directive:
+
+    @finished
+        @discord('discord-webhook-url')
+    @endfinished

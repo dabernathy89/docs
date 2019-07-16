@@ -8,9 +8,11 @@
 <a name="creating-views"></a>
 ## Creating Views
 
+> {tip} Looking for more information on how to write Blade templates? Check out the full [Blade documentation](/docs/{{version}}/blade) to get started.
+
 Views contain the HTML served by your application and separate your controller / application logic from your presentation logic. Views are stored in the `resources/views` directory. A simple view might look something like this:
 
-    <!-- View stored in resources/views/greeting.php -->
+    <!-- View stored in resources/views/greeting.blade.php -->
 
     <html>
         <body>
@@ -18,7 +20,7 @@ Views contain the HTML served by your application and separate your controller /
         </body>
     </html>
 
-Since this view is stored at `resources/views/greeting.php`, we may return it using the global `view` helper like so:
+Since this view is stored at `resources/views/greeting.blade.php`, we may return it using the global `view` helper like so:
 
     Route::get('/', function () {
         return view('greeting', ['name' => 'James']);
@@ -26,7 +28,7 @@ Since this view is stored at `resources/views/greeting.php`, we may return it us
 
 As you can see, the first argument passed to the `view` helper corresponds to the name of the view file in the `resources/views` directory. The second argument is an array of data that should be made available to the view. In this case, we are passing the `name` variable, which is displayed in the view using [Blade syntax](/docs/{{version}}/blade).
 
-Of course, views may also be nested within sub-directories of the `resources/views` directory. "Dot" notation may be used to reference nested views. For example, if your view is stored at `resources/views/admin/profile.php`, you may reference it like so:
+Views may also be nested within sub-directories of the `resources/views` directory. "Dot" notation may be used to reference nested views. For example, if your view is stored at `resources/views/admin/profile.blade.php`, you may reference it like so:
 
     return view('admin.profile', $data);
 
@@ -40,6 +42,18 @@ If you need to determine if a view exists, you may use the `View` facade. The `e
         //
     }
 
+#### Creating The First Available View
+
+Using the `first` method, you may create the first view that exists in a given array of views. This is useful if your application or package allows views to be customized or overwritten:
+
+    return view()->first(['custom.admin', 'admin'], $data);
+
+You may also call this method via the `View` [facade](/docs/{{version}}/facades):
+
+    use Illuminate\Support\Facades\View;
+
+    return View::first(['custom.admin', 'admin'], $data);
+
 <a name="passing-data-to-views"></a>
 ## Passing Data To Views
 
@@ -47,7 +61,7 @@ As you saw in the previous examples, you may pass an array of data to views:
 
     return view('greetings', ['name' => 'Victoria']);
 
-When passing information in this manner, `$data` should be an array with key/value pairs. Inside your view, you can then access each value using its corresponding key, such as `<?php echo $key; ?>`. As an alternative to passing a complete array of data to the `view` helper function, you may use the `with` method to add individual pieces of data to the view:
+When passing information in this manner, the data should be an array with key / value pairs. Inside your view, you can then access each value using its corresponding key, such as `<?php echo $key; ?>`. As an alternative to passing a complete array of data to the `view` helper function, you may use the `with` method to add individual pieces of data to the view:
 
     return view('greeting')->with('name', 'Victoria');
 
@@ -65,6 +79,16 @@ Occasionally, you may need to share a piece of data with all views that are rend
     class AppServiceProvider extends ServiceProvider
     {
         /**
+         * Register any application services.
+         *
+         * @return void
+         */
+        public function register()
+        {
+            //
+        }
+
+        /**
          * Bootstrap any application services.
          *
          * @return void
@@ -73,16 +97,6 @@ Occasionally, you may need to share a piece of data with all views that are rend
         {
             View::share('key', 'value');
         }
-
-        /**
-         * Register the service provider.
-         *
-         * @return void
-         */
-        public function register()
-        {
-            //
-        }
     }
 
 <a name="view-composers"></a>
@@ -90,7 +104,7 @@ Occasionally, you may need to share a piece of data with all views that are rend
 
 View composers are callbacks or class methods that are called when a view is rendered. If you have data that you want to be bound to a view each time that view is rendered, a view composer can help you organize that logic into a single location.
 
-For this example, let's register the view composers within a [service provider](/docs/{{version}}/providers). We'll use the `View` facade to access the underlying `Illuminate\Contracts\View\Factory` contract implementation. Remember, Laravel does not include a default directory for view composers. You are free to organize them however you wish. For example, you could create an `App\Http\ViewComposers` directory:
+For this example, let's register the view composers within a [service provider](/docs/{{version}}/providers). We'll use the `View` facade to access the underlying `Illuminate\Contracts\View\Factory` contract implementation. Remember, Laravel does not include a default directory for view composers. You are free to organize them however you wish. For example, you could create an `app/Http/View/Composers` directory:
 
     <?php
 
@@ -99,10 +113,20 @@ For this example, let's register the view composers within a [service provider](
     use Illuminate\Support\Facades\View;
     use Illuminate\Support\ServiceProvider;
 
-    class ComposerServiceProvider extends ServiceProvider
+    class ViewServiceProvider extends ServiceProvider
     {
         /**
-         * Register bindings in the container.
+         * Register any application services.
+         *
+         * @return void
+         */
+        public function register()
+        {
+            //
+        }
+
+        /**
+         * Bootstrap any application services.
          *
          * @return void
          */
@@ -110,23 +134,13 @@ For this example, let's register the view composers within a [service provider](
         {
             // Using class based composers...
             View::composer(
-                'profile', 'App\Http\ViewComposers\ProfileComposer'
+                'profile', 'App\Http\View\Composers\ProfileComposer'
             );
 
             // Using Closure based composers...
             View::composer('dashboard', function ($view) {
                 //
             });
-        }
-
-        /**
-         * Register the service provider.
-         *
-         * @return void
-         */
-        public function register()
-        {
-            //
         }
     }
 
@@ -136,7 +150,7 @@ Now that we have registered the composer, the `ProfileComposer@compose` method w
 
     <?php
 
-    namespace App\Http\ViewComposers;
+    namespace App\Http\View\Composers;
 
     use Illuminate\View\View;
     use App\Repositories\UserRepository;
@@ -184,7 +198,7 @@ You may attach a view composer to multiple views at once by passing an array of 
 
     View::composer(
         ['profile', 'dashboard'],
-        'App\Http\ViewComposers\MyViewComposer'
+        'App\Http\View\Composers\MyViewComposer'
     );
 
 The `composer` method also accepts the `*` character as a wildcard, allowing you to attach a composer to all views:
@@ -197,4 +211,4 @@ The `composer` method also accepts the `*` character as a wildcard, allowing you
 
 View **creators** are very similar to view composers; however, they are executed immediately after the view is instantiated instead of waiting until the view is about to render. To register a view creator, use the `creator` method:
 
-    View::creator('profile', 'App\Http\ViewCreators\ProfileCreator');
+    View::creator('profile', 'App\Http\View\Creators\ProfileCreator');

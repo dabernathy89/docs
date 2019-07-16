@@ -1,51 +1,64 @@
 # Database Testing
 
 - [Introduction](#introduction)
+- [Generating Factories](#generating-factories)
 - [Resetting The Database After Each Test](#resetting-the-database-after-each-test)
-    - [Using Migrations](#using-migrations)
-    - [Using Transactions](#using-transactions)
 - [Writing Factories](#writing-factories)
-    - [Factory Types](#factory-types)
+    - [Factory States](#factory-states)
+    - [Factory Callbacks](#factory-callbacks)
 - [Using Factories](#using-factories)
     - [Creating Models](#creating-models)
     - [Persisting Models](#persisting-models)
     - [Relationships](#relationships)
+- [Available Assertions](#available-assertions)
 
 <a name="introduction"></a>
 ## Introduction
 
-Laravel provides a variety of helpful tools to make it easier to test your database driven applications. First, you may use the `seeInDatabase` helper to assert that data exists in the database matching a given set of criteria. For example, if you would like to verify that there is a record in the `users` table with the `email` value of `sally@example.com`, you can do the following:
+Laravel provides a variety of helpful tools to make it easier to test your database driven applications. First, you may use the `assertDatabaseHas` helper to assert that data exists in the database matching a given set of criteria. For example, if you would like to verify that there is a record in the `users` table with the `email` value of `sally@example.com`, you can do the following:
 
     public function testDatabase()
     {
         // Make call to application...
 
-        $this->seeInDatabase('users', [
+        $this->assertDatabaseHas('users', [
             'email' => 'sally@example.com'
         ]);
     }
 
-Of course, the `seeInDatabase` method and other helpers like it are for convenience. You are free to use any of PHPUnit's built-in assertion methods to supplement your tests.
+You can also use the `assertDatabaseMissing` helper to assert that data does not exist in the database.
+
+The `assertDatabaseHas` method and other helpers like it are for convenience. You are free to use any of PHPUnit's built-in assertion methods to supplement your tests.
+
+<a name="generating-factories"></a>
+## Generating Factories
+
+To create a factory, use the `make:factory` [Artisan command](/docs/{{version}}/artisan):
+
+    php artisan make:factory PostFactory
+
+The new factory will be placed in your `database/factories` directory.
+
+The `--model` option may be used to indicate the name of the model created by the factory. This option will pre-fill the generated factory file with the given model:
+
+    php artisan make:factory PostFactory --model=Post
 
 <a name="resetting-the-database-after-each-test"></a>
 ## Resetting The Database After Each Test
 
-It is often useful to reset your database after each test so that data from a previous test does not interfere with subsequent tests.
-
-<a name="using-migrations"></a>
-### Using Migrations
-
-One approach to resetting the database state is to rollback the database after each test and migrate it before the next test. Laravel provides a simple `DatabaseMigrations` trait that will automatically handle this for you. Simply use the trait on your test class and everything will be handled for you:
+It is often useful to reset your database after each test so that data from a previous test does not interfere with subsequent tests. The `RefreshDatabase` trait takes the most optimal approach to migrating your test database depending on if you are using an in-memory database or a traditional database. Use the trait on your test class and everything will be handled for you:
 
     <?php
 
+    namespace Tests\Feature;
+
+    use Tests\TestCase;
+    use Illuminate\Foundation\Testing\RefreshDatabase;
     use Illuminate\Foundation\Testing\WithoutMiddleware;
-    use Illuminate\Foundation\Testing\DatabaseMigrations;
-    use Illuminate\Foundation\Testing\DatabaseTransactions;
 
     class ExampleTest extends TestCase
     {
-        use DatabaseMigrations;
+        use RefreshDatabase;
 
         /**
          * A basic functional test example.
@@ -54,79 +67,74 @@ One approach to resetting the database state is to rollback the database after e
          */
         public function testBasicExample()
         {
-            $this->visit('/')
-                 ->see('Laravel 5');
+            $response = $this->get('/');
+
+            // ...
         }
     }
 
-<a name="using-transactions"></a>
-### Using Transactions
-
-Another approach to resetting the database state is to wrap each test case in a database transaction. Again, Laravel provides a convenient `DatabaseTransactions` trait that will automatically handle this for you:
-
-    <?php
-
-    use Illuminate\Foundation\Testing\WithoutMiddleware;
-    use Illuminate\Foundation\Testing\DatabaseMigrations;
-    use Illuminate\Foundation\Testing\DatabaseTransactions;
-
-    class ExampleTest extends TestCase
-    {
-        use DatabaseTransactions;
-
-        /**
-         * A basic functional test example.
-         *
-         * @return void
-         */
-        public function testBasicExample()
-        {
-            $this->visit('/')
-                 ->see('Laravel 5');
-        }
-    }
-
-> {note} This trait will only wrap the default database connection in a transaction. If your application is using multiple database connections, you will need to manually handle the transaction logic for those connections.
-
-<a name="model-factories"></a>
+<a name="writing-factories"></a>
 ## Writing Factories
 
-When testing, it is common to need to insert a few records into your database before executing your test. Instead of manually specifying the value of each column when you create this test data, Laravel allows you to define a default set of attributes for each of your [Eloquent models](/docs/{{version}}/eloquent) using model factories. To get started, take a look at the `database/factories/ModelFactory.php` file in your application. Out of the box, this file contains one factory definition:
+When testing, you may need to insert a few records into your database before executing your test. Instead of manually specifying the value of each column when you create this test data, Laravel allows you to define a default set of attributes for each of your [Eloquent models](/docs/{{version}}/eloquent) using model factories. To get started, take a look at the `database/factories/UserFactory.php` file in your application. Out of the box, this file contains one factory definition:
 
-    $factory->define(App\User::class, function (Faker\Generator $faker) {
+    use Illuminate\Support\Str;
+    use Faker\Generator as Faker;
+
+    $factory->define(App\User::class, function (Faker $faker) {
         return [
             'name' => $faker->name,
-            'email' => $faker->email,
-            'password' => bcrypt(str_random(10)),
-            'remember_token' => str_random(10),
+            'email' => $faker->unique()->safeEmail,
+            'email_verified_at' => now(),
+            'password' => '$2y$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm', // secret
+            'remember_token' => Str::random(10),
         ];
     });
 
 Within the Closure, which serves as the factory definition, you may return the default test values of all attributes on the model. The Closure will receive an instance of the [Faker](https://github.com/fzaninotto/Faker) PHP library, which allows you to conveniently generate various kinds of random data for testing.
 
-Of course, you are free to add your own additional factories to the `ModelFactory.php` file. You may also create additional factory files for each model for better organization. For example, you could create `UserFactory.php` and `CommentFactory.php` files within your `database/factories` directory. All of the files within the `factories` directory will automatically be loaded by Laravel.
+You may also create additional factory files for each model for better organization. For example, you could create `UserFactory.php` and `CommentFactory.php` files within your `database/factories` directory. All of the files within the `factories` directory will automatically be loaded by Laravel.
 
-<a name="factory-types"></a>
-### Factory Types
+> {tip} You can set the Faker locale by adding a `faker_locale` option to your `config/app.php` configuration file.
 
-Sometimes you may wish to have multiple factories for the same Eloquent model class. For example, perhaps you would like to have a factory for "Administrator" users in addition to normal users. You may define these factories using the `defineAs` method:
+<a name="factory-states"></a>
+### Factory States
 
-    $factory->defineAs(App\User::class, 'admin', function ($faker) {
+States allow you to define discrete modifications that can be applied to your model factories in any combination. For example, your `User` model might have a `delinquent` state that modifies one of its default attribute values. You may define your state transformations using the `state` method. For simple states, you may pass an array of attribute modifications:
+
+    $factory->state(App\User::class, 'delinquent', [
+        'account_status' => 'delinquent',
+    ]);
+
+If your state requires calculation or a `$faker` instance, you may use a Closure to calculate the state's attribute modifications:
+
+    $factory->state(App\User::class, 'address', function ($faker) {
         return [
-            'name' => $faker->name,
-            'email' => $faker->email,
-            'password' => str_random(10),
-            'remember_token' => str_random(10),
-            'admin' => true,
+            'address' => $faker->address,
         ];
     });
 
-Instead of duplicating all of the attributes from your base user factory, you may use the `raw` method to retrieve the base attributes. Once you have the attributes, simply supplement them with any additional values you require:
+<a name="factory-callbacks"></a>
+### Factory Callbacks
 
-    $factory->defineAs(App\User::class, 'admin', function ($faker) use ($factory) {
-        $user = $factory->raw(App\User::class);
+Factory callbacks are registered using the `afterMaking` and `afterCreating` methods, and allow you to perform additional tasks after making or creating a model. For example, you may use callbacks to relate additional models to the created model:
 
-        return array_merge($user, ['admin' => true]);
+    $factory->afterMaking(App\User::class, function ($user, $faker) {
+        // ...
+    });
+
+    $factory->afterCreating(App\User::class, function ($user, $faker) {
+        $user->accounts()->save(factory(App\Account::class)->make());
+    });
+
+You may also define callbacks for [factory states](#factory-states):
+
+    $factory->afterMakingState(App\User::class, 'delinquent', function ($user, $faker) {
+        // ...
+    });
+
+    $factory->afterCreatingState(App\User::class, 'delinquent', function ($user, $faker) {
+        // ...
     });
 
 <a name="using-factories"></a>
@@ -149,11 +157,13 @@ You may also create a Collection of many models or create models of a given type
     // Create three App\User instances...
     $users = factory(App\User::class, 3)->make();
 
-    // Create an "admin" App\User instance...
-    $user = factory(App\User::class, 'admin')->make();
+#### Applying States
 
-    // Create three "admin" App\User instances...
-    $users = factory(App\User::class, 'admin', 3)->make();
+You may also apply any of your [states](#factory-states) to the models. If you would like to apply multiple state transformations to the models, you should specify the name of each state you would like to apply:
+
+    $users = factory(App\User::class, 5)->states('delinquent')->make();
+
+    $users = factory(App\User::class, 5)->states('premium', 'delinquent')->make();
 
 #### Overriding Attributes
 
@@ -192,8 +202,8 @@ In this example, we'll attach a relation to some created models. When using the 
 
     $users = factory(App\User::class, 3)
                ->create()
-               ->each(function ($u) {
-                    $u->posts()->save(factory(App\Post::class)->make());
+               ->each(function ($user) {
+                    $user->posts()->save(factory(App\Post::class)->make());
                 });
 
 #### Relations & Attribute Closures
@@ -210,7 +220,7 @@ You may also attach relationships to models using Closure attributes in your fac
         ];
     });
 
-These Closures also receive the evaluated attribute array of the factory that contains them:
+These Closures also receive the evaluated attribute array of the factory that defines them:
 
     $factory->define(App\Post::class, function ($faker) {
         return [
@@ -224,3 +234,14 @@ These Closures also receive the evaluated attribute array of the factory that co
             }
         ];
     });
+
+<a name="available-assertions"></a>
+## Available Assertions
+
+Laravel provides several database assertions for your [PHPUnit](https://phpunit.de/) tests:
+
+Method  | Description
+------------- | -------------
+`$this->assertDatabaseHas($table, array $data);`  |  Assert that a table in the database contains the given data.
+`$this->assertDatabaseMissing($table, array $data);`  |  Assert that a table in the database does not contain the given data.
+`$this->assertSoftDeleted($table, array $data);`  |  Assert that the given record has been soft deleted.
